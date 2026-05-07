@@ -850,14 +850,15 @@ function renderProgram() {
 function renderWorkout() {
   if (!session) return '';
 
-  const exIdx = session.exIdx;
-  const ex    = session.exercises[exIdx];
-  const total = session.exercises.length;
-  const done  = session.setsDone;
+  const exIdx   = session.exIdx;
+  const ex      = session.exercises[exIdx];
+  const total   = session.exercises.length;
+  const done    = session.setsDone;
   const resting = session.resting;
+  const doneCount = (session.doneIndices || []).length;
 
-  /* progress pct */
-  const pct = Math.round((exIdx / total) * 100);
+  /* progress pct based on completed exercises */
+  const pct = Math.round((doneCount / total) * 100);
 
   /* set dots */
   let dots = '';
@@ -885,12 +886,20 @@ function renderWorkout() {
         </button>`;
     }
     if (done >= ex.sets) {
-      /* all sets done for this exercise */
-      if (exIdx < total - 1) {
-        actions += `
-          <button class="btn btn-primary" onclick="nextExercise()" style="margin-bottom:10px">
-            Next Exercise →
-          </button>`;
+      /* all sets done — let user pick next exercise */
+      const remaining = getRemainingIndices();
+      if (remaining.length > 0) {
+        actions += `<div class="section-title" style="margin-bottom:10px">Choose Next Exercise</div>`;
+        actions += remaining.map(i => {
+          const u = session.exercises[i];
+          return `
+            <button class="btn btn-secondary" onclick="nextExercise(${i})" style="margin-bottom:8px;justify-content:flex-start;border-radius:12px;padding:14px 16px;text-align:left">
+              <div>
+                <div style="font-size:15px;font-weight:700;color:var(--text)">${esc(u.name)}</div>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">${u.sets} sets × ${u.reps} reps${u.weight?' · '+u.weight+' kg':''}</div>
+              </div>
+            </button>`;
+        }).join('');
       } else {
         actions += `
           <button class="btn btn-primary" onclick="finishWorkout()" style="margin-bottom:10px">
@@ -898,7 +907,7 @@ function renderWorkout() {
           </button>`;
       }
     }
-    actions += `<button class="btn btn-ghost btn-sm" onclick="confirmEndWorkout()">End Workout Early</button>`;
+    actions += `<div style="height:4px"></div><button class="btn btn-ghost btn-sm" onclick="confirmEndWorkout()">End Workout Early</button>`;
 
   } else {
     /* ── ACTIVE SET ── */
@@ -906,21 +915,21 @@ function renderWorkout() {
       <button class="btn btn-primary" onclick="completeSet()" style="margin-bottom:10px">
         ✓ Complete Set ${done+1}
       </button>`;
-    if (exIdx < total - 1) {
-      actions += `<button class="btn btn-secondary btn-sm" onclick="skipExercise()" style="margin-bottom:10px">Skip Exercise</button>`;
-    }
     actions += `<button class="btn btn-ghost btn-sm" onclick="confirmEndWorkout()">End Workout Early</button>`;
   }
 
-  /* upcoming exercises */
-  const upcoming = session.exercises.slice(exIdx + 1);
-  const upcomingHtml = upcoming.length ? `
+  /* remaining exercises (not done, not current) */
+  const doneSet  = new Set(session.doneIndices || []);
+  const upcoming = session.exercises
+    .map((u, i) => ({ u, i }))
+    .filter(({ i }) => !doneSet.has(i) && i !== exIdx);
+  const upcomingHtml = upcoming.length && done < ex.sets ? `
     <div class="divider"></div>
-    <div class="section-title">Up Next</div>
+    <div class="section-title">Remaining</div>
     <div class="card" style="overflow:hidden;margin-bottom:8px">
-      ${upcoming.map((u, i) => `
+      ${upcoming.map(({ u, i }) => `
         <div class="up-item">
-          <div class="up-num">${exIdx + i + 2}</div>
+          <div class="up-num">${i + 1}</div>
           <div>
             <div class="up-name">${esc(u.name)}</div>
             <div class="up-meta">${u.sets} sets × ${u.reps} reps${u.weight?' · '+u.weight+' kg':''}</div>
@@ -938,7 +947,7 @@ function renderWorkout() {
       </div>
     </div>
 
-    <div class="ex-progress">Exercise ${exIdx+1} of ${total}</div>
+    <div class="ex-progress">Exercise ${doneCount+1} of ${total}</div>
     <div class="ex-big-name">${esc(ex.name)}</div>
     <div class="ex-set-info">${ex.sets} sets × ${ex.reps} reps${ex.weight?' · '+ex.weight+' kg':''}</div>
 
@@ -1426,6 +1435,7 @@ function startWorkout(progId) {
     startTime:   Date.now(),
     exercises:   p.exercises.map(e => ({ ...e })),
     exIdx:       0,
+    doneIndices: [],
     setsDone:    0,
     resting:     false,
     restStart:   null,
@@ -1449,20 +1459,30 @@ function startNextSet() {
   saveSes(); go('workout');
 }
 
-function nextExercise() {
+function getRemainingIndices() {
+  const done = new Set([...(session.doneIndices || []), session.exIdx]);
+  return session.exercises.map((_, i) => i).filter(i => !done.has(i));
+}
+
+function nextExercise(targetIdx) {
   if (!session) return;
   logCurrentExercise();
-  session.exIdx++;
+  session.doneIndices = session.doneIndices || [];
+  session.doneIndices.push(session.exIdx);
+
+  const remaining = getRemainingIndices();
+  if (remaining.length === 0) { finishWorkout(); return; }
+
+  session.exIdx     = targetIdx !== undefined ? targetIdx : remaining[0];
   session.setsDone  = 0;
   session.resting   = false;
   session.restStart = null;
   saveSes(); go('workout');
 }
 
-function skipExercise() { nextExercise(); }
-
 function logCurrentExercise() {
   if (!session) return;
+  if ((session.doneIndices || []).includes(session.exIdx)) return;
   const ex = session.exercises[session.exIdx];
   session.log.push({ name: ex.name, sets: session.setsDone });
 }
