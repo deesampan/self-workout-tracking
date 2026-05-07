@@ -1154,7 +1154,7 @@ function renderCalendar() {
       dateStr === todayStr ? 'today' : ''
     ].join(' ').trim();
 
-    cells += `<div class="${cls}">
+    cells += `<div class="${cls}" ${count ? `onclick="showDaySessions(${y},${m},${day})" style="cursor:pointer"` : ''}>
       ${day}
       ${count > 1 ? '<span class="cal-multi"></span>' : ''}
     </div>`;
@@ -1177,6 +1177,37 @@ function renderCalendar() {
         ${cells}
       </div>
     </div>`;
+}
+
+function showDaySessions(y, m, day) {
+  const daySessions = db.sessions.filter(s => {
+    const d = new Date(s.startTime);
+    return d.getFullYear() === y && d.getMonth() === m && d.getDate() === day;
+  });
+  if (!daySessions.length) return;
+
+  const dateLabel = new Date(y, m, day).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+
+  const body = daySessions.map(s => `
+    <div style="background:var(--bg);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:16px;font-weight:800">${esc(s.programName)}</div>
+        <div style="font-size:14px;font-weight:700;color:var(--red)">${fmtTime(s.duration)}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${fmtDT(s.startTime)}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${(s.exercises||[]).map(e => `
+          <span style="background:white;border:1px solid var(--border);border-radius:100px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--muted)">
+            ${esc(e.name)}${e.sets ? ' ×'+e.sets : ''}
+          </span>`).join('')}
+      </div>
+    </div>`).join('');
+
+  showModal(`📅 ${dateLabel}`, body + `
+    <button class="btn btn-secondary btn-sm" onclick="closeModal()" style="margin-top:4px">Close</button>
+  `);
 }
 
 function prevMonth() {
