@@ -1544,22 +1544,12 @@ function completeSet() {
     <p style="font-size:13px;color:var(--muted);margin-bottom:18px">
       Target: <strong>${ex.reps} reps${ex.weight ? ' · ' + ex.weight + ' kg' : ''}</strong>
     </p>
-    <div class="form-row-2" style="margin-bottom:16px">
-      <div>
-        <label class="form-label">Reps Done</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',-1,0,999)">−</button>
-          <input class="stepper-val" id="sl-reps" type="number" min="0" value="${ex.reps}">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',1,0,999)">+</button>
-        </div>
-      </div>
-      <div>
-        <label class="form-label">Weight (kg)</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',-2.5,0,999)">−</button>
-          <input class="stepper-val" id="sl-wt" type="number" min="0" step="2.5" value="${ex.weight || 0}">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',2.5,0,999)">+</button>
-        </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label class="form-label">Reps Done</label>
+      <div class="stepper">
+        <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',-1,0,999)">−</button>
+        <input class="stepper-val" id="sl-reps" type="number" min="0" value="${ex.reps}">
+        <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',1,0,999)">+</button>
       </div>
     </div>
     <button class="btn btn-primary" onclick="saveSetAndRest()" style="margin-bottom:10px">✓ Save & Start Rest</button>
@@ -1569,11 +1559,10 @@ function completeSet() {
 
 function saveSetAndRest() {
   if (!session) return;
-  const reps   = parseInt(document.getElementById('sl-reps')?.value)   || 0;
-  const weight = parseFloat(document.getElementById('sl-wt')?.value) || null;
+  const reps = parseInt(document.getElementById('sl-reps')?.value) || 0;
   closeModal();
   session.currentSetLog = session.currentSetLog || [];
-  session.currentSetLog.push({ reps, weight });
+  session.currentSetLog.push({ reps });
   session.setsDone++;
   session.resting   = true;
   session.restStart = Date.now();
@@ -1643,7 +1632,7 @@ function renderExSetLog(ex) {
            </div>`
         : `<div class="setlog-row">
              <span class="setlog-row-lbl">Set ${i+1}</span>
-             <span class="setlog-row-val">${s.reps} reps${s.weight ? ' · ' + s.weight + ' kg' : ''}</span>
+             <span class="setlog-row-val">${s.reps} reps${ex.weight ? ' · ' + ex.weight + ' kg' : ''}</span>
            </div>`
       ).join('')}
     </div>`;
