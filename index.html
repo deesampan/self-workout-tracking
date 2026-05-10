@@ -381,7 +381,8 @@
     .stat-val  { font-size: 30px; font-weight: 800; color: var(--red); line-height: 1; margin-bottom: 4px; }
     .stat-lbl  { font-size: 12px; color: var(--muted); font-weight: 600; }
 
-    .hist-card { padding: 14px 16px; margin-bottom: 10px; }
+    .hist-card { padding: 14px 16px; margin-bottom: 10px; cursor: pointer; transition: box-shadow 0.15s; }
+    .hist-card:active { box-shadow: var(--sh-md); }
     .hist-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
     .hist-prog   { font-size: 15px; font-weight: 700; }
     .hist-date   { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -1036,7 +1037,7 @@ function renderHistory() {
   // session list
   h += `<div class="section-title">Session Log</div>`;
   h += db.sessions.slice().reverse().map(s => `
-    <div class="card hist-card">
+    <div class="card hist-card" onclick="showSessionDetail('${s.id}')">
       <div class="hist-header">
         <div>
           <div class="hist-prog">${esc(s.programName)}</div>
@@ -1044,7 +1045,7 @@ function renderHistory() {
         </div>
         <div style="display:flex;align-items:center;gap:10px">
           <div class="hist-dur">${fmtTime(s.duration)}</div>
-          <button onclick="deleteSession('${s.id}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--muted);opacity:0.6;padding:2px">🗑️</button>
+          <button onclick="deleteSession('${s.id}');event.stopPropagation()" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--muted);opacity:0.6;padding:2px">🗑️</button>
         </div>
       </div>
       <div class="hist-tags">
@@ -1197,6 +1198,37 @@ function renderCalendar() {
     </div>`;
 }
 
+function showSessionDetail(id) {
+  const s = db.sessions.find(s => s.id === id);
+  if (!s) return;
+
+  const dateLabel = new Date(s.startTime).toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+  });
+
+  showModal(`📅 ${dateLabel}`, `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div>
+        <div style="font-size:20px;font-weight:800;margin-bottom:3px">${esc(s.programName)}</div>
+        <div style="font-size:12px;color:var(--muted)">${fmtDT(s.startTime)}</div>
+      </div>
+      <span style="background:var(--red-light);color:var(--red);border-radius:100px;padding:5px 12px;font-size:14px;font-weight:800;white-space:nowrap">⏱ ${fmtTime(s.duration)}</span>
+    </div>
+    <div class="divider" style="margin-bottom:14px"></div>
+    ${(s.exercises||[]).length
+      ? (s.exercises||[]).map(e => `
+          <div class="setlog-ex">
+            <div class="setlog-name">${esc(e.name)}
+              <span style="color:var(--muted);font-weight:500;font-size:12px"> × ${e.sets||0} sets</span>
+            </div>
+            ${renderExSetLog(e) || '<div style="font-size:12px;color:var(--muted);padding:4px 0">No set data recorded</div>'}
+          </div>`).join('')
+      : '<p style="color:var(--muted);font-size:14px">No exercises recorded.</p>'}
+    <div style="height:8px"></div>
+    <button class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>
+  `);
+}
+
 function showDaySessions(y, m, day) {
   const daySessions = db.sessions.filter(s => {
     const d = new Date(s.startTime);
@@ -1204,26 +1236,23 @@ function showDaySessions(y, m, day) {
   });
   if (!daySessions.length) return;
 
+  /* single session → go straight to detail */
+  if (daySessions.length === 1) { showSessionDetail(daySessions[0].id); return; }
+
+  /* multiple sessions → show a picker list */
   const dateLabel = new Date(y, m, day).toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+    weekday: 'long', month: 'long', day: 'numeric'
   });
-
-  const body = daySessions.map(s => `
-    <div style="background:var(--bg);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-size:16px;font-weight:800">${esc(s.programName)}</div>
-        <div style="font-size:14px;font-weight:700;color:var(--red)">${fmtTime(s.duration)}</div>
+  showModal(`📅 ${dateLabel}`, daySessions.map(s => `
+    <div onclick="showSessionDetail('${s.id}')"
+         style="background:var(--bg);border-radius:var(--r-md);padding:14px 16px;margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-size:15px;font-weight:700">${esc(s.programName)}</div>
+        <div style="font-size:12px;color:var(--muted)">${fmtDT(s.startTime)}</div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${fmtDT(s.startTime)}</div>
-      ${(s.exercises||[]).map(e => `
-        <div class="setlog-ex">
-          <div class="setlog-name">${esc(e.name)} <span style="color:var(--muted);font-weight:500;font-size:12px">× ${e.sets||0} sets</span></div>
-          ${renderExSetLog(e)}
-        </div>`).join('')}
-    </div>`).join('');
-
-  showModal(`📅 ${dateLabel}`, body + `
-    <button class="btn btn-secondary btn-sm" onclick="closeModal()" style="margin-top:4px">Close</button>
+      <div style="font-size:15px;font-weight:800;color:var(--red)">${fmtTime(s.duration)}</div>
+    </div>`).join('') + `
+    <button class="btn btn-secondary btn-sm" onclick="closeModal()">Close</button>
   `);
 }
 
