@@ -853,7 +853,7 @@ function renderProgram() {
         </div>
         ${(s.exercises||[]).map(e => `
           <div class="setlog-ex">
-            <div class="setlog-name">${esc(e.name)} <span style="color:var(--muted);font-weight:500;font-size:12px">× ${e.sets||0} sets</span></div>
+            <div class="setlog-name">${esc(e.name)} <span style="color:var(--muted);font-weight:500;font-size:12px">× ${e.sets||0} sets${e.weight ? ' · ' + e.weight + ' kg' : ''}</span></div>
             ${renderExSetLog(e)}
           </div>`).join('')}
       </div>`).join('');
@@ -1219,7 +1219,7 @@ function showSessionDetail(id) {
       ? (s.exercises||[]).map(e => `
           <div class="setlog-ex">
             <div class="setlog-name">${esc(e.name)}
-              <span style="color:var(--muted);font-weight:500;font-size:12px"> × ${e.sets||0} sets</span>
+              <span style="color:var(--muted);font-weight:500;font-size:12px"> × ${e.sets||0} sets${e.weight ? ' · ' + e.weight + ' kg' : ''}</span>
             </div>
             ${renderExSetLog(e) || '<div style="font-size:12px;color:var(--muted);padding:4px 0">No set data recorded</div>'}
           </div>`).join('')
