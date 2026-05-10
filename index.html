@@ -1616,6 +1616,7 @@ function logCurrentExercise() {
   session.log.push({
     name:   ex.name,
     sets:   session.setsDone,
+    weight: ex.weight || '',
     setLog: [...(session.currentSetLog || [])]
   });
 }
