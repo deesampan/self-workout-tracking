@@ -1042,7 +1042,10 @@ function renderHistory() {
           <div class="hist-prog">${esc(s.programName)}</div>
           <div class="hist-date">${fmtDT(s.startTime)}</div>
         </div>
-        <div class="hist-dur">${fmtTime(s.duration)}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="hist-dur">${fmtTime(s.duration)}</div>
+          <button onclick="deleteSession('${s.id}')" style="background:none;border:none;cursor:pointer;font-size:16px;color:var(--muted);opacity:0.6;padding:2px">🗑️</button>
+        </div>
       </div>
       <div class="hist-tags">
         ${(s.exercises||[]).map(e=>`<span class="hist-tag">${esc(e.name)}${e.sets?' ×'+e.sets:''}</span>`).join('')}
@@ -1222,6 +1225,19 @@ function showDaySessions(y, m, day) {
   showModal(`📅 ${dateLabel}`, body + `
     <button class="btn btn-secondary btn-sm" onclick="closeModal()" style="margin-top:4px">Close</button>
   `);
+}
+
+function deleteSession(id) {
+  showConfirm(
+    'Delete Session?',
+    'This workout entry will be permanently removed from your history.',
+    () => {
+      db.sessions = db.sessions.filter(s => s.id !== id);
+      saveDB();
+      go('history');
+      toast('Session deleted');
+    }
+  );
 }
 
 function prevMonth() {
@@ -1499,22 +1515,12 @@ function completeSet() {
     <p style="font-size:13px;color:var(--muted);margin-bottom:18px">
       Target: <strong>${ex.reps} reps${ex.weight ? ' · ' + ex.weight + ' kg' : ''}</strong>
     </p>
-    <div class="form-row-2" style="margin-bottom:16px">
-      <div>
-        <label class="form-label">Reps Done</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',-1,0,999)">−</button>
-          <input class="stepper-val" id="sl-reps" type="number" min="0" value="${ex.reps}">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',1,0,999)">+</button>
-        </div>
-      </div>
-      <div>
-        <label class="form-label">Weight (kg)</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',-2.5,0,999)">−</button>
-          <input class="stepper-val" id="sl-wt" type="number" min="0" step="2.5" value="${ex.weight || 0}">
-          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',2.5,0,999)">+</button>
-        </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label class="form-label">Reps Done</label>
+      <div class="stepper">
+        <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',-1,0,999)">−</button>
+        <input class="stepper-val" id="sl-reps" type="number" min="0" value="${ex.reps}">
+        <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',1,0,999)">+</button>
       </div>
     </div>
     <button class="btn btn-primary" onclick="saveSetAndRest()" style="margin-bottom:10px">✓ Save & Start Rest</button>
@@ -1524,11 +1530,10 @@ function completeSet() {
 
 function saveSetAndRest() {
   if (!session) return;
-  const reps   = parseInt(document.getElementById('sl-reps')?.value) || 0;
-  const weight = parseFloat(document.getElementById('sl-wt')?.value)  || 0;
+  const reps = parseInt(document.getElementById('sl-reps')?.value) || 0;
   closeModal();
   session.currentSetLog = session.currentSetLog || [];
-  session.currentSetLog.push({ reps, weight: weight || null });
+  session.currentSetLog.push({ reps });
   session.setsDone++;
   session.resting   = true;
   session.restStart = Date.now();
@@ -1598,7 +1603,7 @@ function renderExSetLog(ex) {
            </div>`
         : `<div class="setlog-row">
              <span class="setlog-row-lbl">Set ${i+1}</span>
-             <span class="setlog-row-val">${s.reps} reps${s.weight ? ' · ' + s.weight + ' kg' : ''}</span>
+             <span class="setlog-row-val">${s.reps} reps</span>
            </div>`
       ).join('')}
     </div>`;
