@@ -158,6 +158,19 @@
     .up-name { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
     .up-meta { font-size: 12px; color: var(--muted); }
 
+    /* ── SET LOG ─────────────────────────────── */
+    .setlog-ex { margin-bottom: 12px; }
+    .setlog-ex:last-child { margin-bottom: 0; }
+    .setlog-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+    .setlog-rows { display: flex; flex-direction: column; gap: 4px; }
+    .setlog-row {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 13px; padding: 6px 10px;
+      background: var(--bg); border-radius: 8px;
+    }
+    .setlog-row-lbl { color: var(--muted); font-weight: 600; }
+    .setlog-row-val { font-weight: 700; color: var(--text); }
+
     .ex-num {
       width: 28px; height: 28px; border-radius: 50%;
       background: var(--red-light); color: var(--red);
@@ -837,9 +850,11 @@ function renderProgram() {
           <div><div class="hist-date">${fmtDT(s.startTime)}</div></div>
           <div class="hist-dur">${fmtTime(s.duration)}</div>
         </div>
-        <div class="hist-tags">
-          ${(s.exercises||[]).map(e=>`<span class="hist-tag">${esc(e.name)}${e.sets?' ×'+e.sets:''}</span>`).join('')}
-        </div>
+        ${(s.exercises||[]).map(e => `
+          <div class="setlog-ex">
+            <div class="setlog-name">${esc(e.name)} <span style="color:var(--muted);font-weight:500;font-size:12px">× ${e.sets||0} sets</span></div>
+            ${renderExSetLog(e)}
+          </div>`).join('')}
       </div>`).join('');
   }
 
@@ -1196,13 +1211,12 @@ function showDaySessions(y, m, day) {
         <div style="font-size:16px;font-weight:800">${esc(s.programName)}</div>
         <div style="font-size:14px;font-weight:700;color:var(--red)">${fmtTime(s.duration)}</div>
       </div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">${fmtDT(s.startTime)}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${(s.exercises||[]).map(e => `
-          <span style="background:white;border:1px solid var(--border);border-radius:100px;padding:3px 10px;font-size:12px;font-weight:600;color:var(--muted)">
-            ${esc(e.name)}${e.sets ? ' ×'+e.sets : ''}
-          </span>`).join('')}
-      </div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">${fmtDT(s.startTime)}</div>
+      ${(s.exercises||[]).map(e => `
+        <div class="setlog-ex">
+          <div class="setlog-name">${esc(e.name)} <span style="color:var(--muted);font-weight:500;font-size:12px">× ${e.sets||0} sets</span></div>
+          ${renderExSetLog(e)}
+        </div>`).join('')}
     </div>`).join('');
 
   showModal(`📅 ${dateLabel}`, body + `
@@ -1465,9 +1479,10 @@ function startWorkout(progId) {
     programName: p.name,
     startTime:   Date.now(),
     exercises:   p.exercises.map(e => ({ ...e })),
-    exIdx:       0,
-    doneIndices: [],
-    setsDone:    0,
+    exIdx:         0,
+    doneIndices:   [],
+    setsDone:      0,
+    currentSetLog: [],
     resting:     false,
     restStart:   null,
     log:         []        /* { name, sets } per exercise */
@@ -1477,6 +1492,54 @@ function startWorkout(progId) {
 
 function completeSet() {
   if (!session) return;
+  const ex     = session.exercises[session.exIdx];
+  const setNum = session.setsDone + 1;
+
+  showModal(`📝 Log Set ${setNum}`, `
+    <p style="font-size:13px;color:var(--muted);margin-bottom:18px">
+      Target: <strong>${ex.reps} reps${ex.weight ? ' · ' + ex.weight + ' kg' : ''}</strong>
+    </p>
+    <div class="form-row-2" style="margin-bottom:16px">
+      <div>
+        <label class="form-label">Reps Done</label>
+        <div class="stepper">
+          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',-1,0,999)">−</button>
+          <input class="stepper-val" id="sl-reps" type="number" min="0" value="${ex.reps}">
+          <button type="button" class="stepper-btn" onclick="stepVal('sl-reps',1,0,999)">+</button>
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Weight (kg)</label>
+        <div class="stepper">
+          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',-2.5,0,999)">−</button>
+          <input class="stepper-val" id="sl-wt" type="number" min="0" step="2.5" value="${ex.weight || 0}">
+          <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',2.5,0,999)">+</button>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="saveSetAndRest()" style="margin-bottom:10px">✓ Save & Start Rest</button>
+    <button class="btn btn-ghost btn-sm" onclick="skipSetLog()">Skip logging this set</button>
+  `);
+}
+
+function saveSetAndRest() {
+  if (!session) return;
+  const reps   = parseInt(document.getElementById('sl-reps')?.value) || 0;
+  const weight = parseFloat(document.getElementById('sl-wt')?.value)  || 0;
+  closeModal();
+  session.currentSetLog = session.currentSetLog || [];
+  session.currentSetLog.push({ reps, weight: weight || null });
+  session.setsDone++;
+  session.resting   = true;
+  session.restStart = Date.now();
+  saveSes(); go('workout');
+}
+
+function skipSetLog() {
+  if (!session) return;
+  closeModal();
+  session.currentSetLog = session.currentSetLog || [];
+  session.currentSetLog.push(null);   /* null = not logged */
   session.setsDone++;
   session.resting   = true;
   session.restStart = Date.now();
@@ -1504,10 +1567,11 @@ function nextExercise(targetIdx) {
   const remaining = getRemainingIndices();
   if (remaining.length === 0) { finishWorkout(); return; }
 
-  session.exIdx     = targetIdx !== undefined ? targetIdx : remaining[0];
-  session.setsDone  = 0;
-  session.resting   = false;
-  session.restStart = null;
+  session.exIdx         = targetIdx !== undefined ? targetIdx : remaining[0];
+  session.setsDone      = 0;
+  session.currentSetLog = [];
+  session.resting       = false;
+  session.restStart     = null;
   saveSes(); go('workout');
 }
 
@@ -1515,7 +1579,29 @@ function logCurrentExercise() {
   if (!session) return;
   if ((session.doneIndices || []).includes(session.exIdx)) return;
   const ex = session.exercises[session.exIdx];
-  session.log.push({ name: ex.name, sets: session.setsDone });
+  session.log.push({
+    name:   ex.name,
+    sets:   session.setsDone,
+    setLog: [...(session.currentSetLog || [])]
+  });
+}
+
+/* renders per-set rows for history displays */
+function renderExSetLog(ex) {
+  if (!ex.setLog?.length) return '';
+  return `
+    <div class="setlog-rows" style="margin-top:6px">
+      ${ex.setLog.map((s, i) => s === null
+        ? `<div class="setlog-row">
+             <span class="setlog-row-lbl">Set ${i+1}</span>
+             <span style="color:var(--muted);font-size:12px">—</span>
+           </div>`
+        : `<div class="setlog-row">
+             <span class="setlog-row-lbl">Set ${i+1}</span>
+             <span class="setlog-row-val">${s.reps} reps${s.weight ? ' · ' + s.weight + ' kg' : ''}</span>
+           </div>`
+      ).join('')}
+    </div>`;
 }
 
 function finishWorkout() {
