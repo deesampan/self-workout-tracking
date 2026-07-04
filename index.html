@@ -966,7 +966,7 @@ function renderWorkout() {
     ${cards}
 
     <div style="height:6px"></div>
-    <button class="btn btn-primary" onclick="finishWorkout()" style="margin-bottom:10px">🏁 Finish Workout</button>
+    <button class="btn btn-primary" onclick="confirmFinish()" style="margin-bottom:10px">🏁 Finish Workout</button>
     <button class="btn btn-ghost btn-sm" onclick="confirmEndWorkout()">End Workout Early</button>
     <div style="height:20px"></div>`;
 }
@@ -1552,9 +1552,9 @@ function logSet(idx, setIdx) {
     <div class="form-group" style="margin-bottom:20px">
       <label class="form-label">Weight (kg) — optional</label>
       <div class="stepper">
-        <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',-1,0,9999)">−</button>
-        <input class="stepper-val" id="sl-wt" type="number" min="0" value="${wt}" placeholder="0">
-        <button type="button" class="stepper-btn" onclick="stepVal('sl-wt',1,0,9999)">+</button>
+        <button type="button" class="stepper-btn" onclick="stepWeight('sl-wt',-0.5)">−</button>
+        <input class="stepper-val" id="sl-wt" type="number" min="0" step="0.5" inputmode="decimal" value="${wt}" placeholder="0">
+        <button type="button" class="stepper-btn" onclick="stepWeight('sl-wt',0.5)">+</button>
       </div>
     </div>
     <button class="btn btn-primary" onclick="saveSet(${idx}${editing ? ',' + setIdx : ''})" style="margin-bottom:10px">✓ Save${editing ? '' : ' & Rest'}</button>
@@ -1566,7 +1566,9 @@ function logSet(idx, setIdx) {
 
 function readWeight(id) {
   const raw = document.getElementById(id)?.value;
-  return (raw !== '' && raw != null) ? (parseInt(raw) || 0) : '';
+  if (raw === '' || raw == null) return '';
+  const n = parseFloat(raw);
+  return isNaN(n) ? '' : Math.round(n * 10) / 10;
 }
 
 function saveSet(idx, setIdx) {
@@ -1617,30 +1619,28 @@ function editWorkoutEx(idx) {
       <label class="form-label">Exercise Name</label>
       <input class="form-input" id="we-name" value="${esc(e.name)}">
     </div>
-    <div style="display:flex;gap:10px">
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Sets</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('we-sets',-1,1,99)">−</button>
-          <input class="stepper-val" id="we-sets" type="number" min="1" value="${e.sets || 1}">
-          <button type="button" class="stepper-btn" onclick="stepVal('we-sets',1,1,99)">+</button>
-        </div>
+    <div class="form-group">
+      <label class="form-label">Sets</label>
+      <div class="stepper">
+        <button type="button" class="stepper-btn" onclick="stepVal('we-sets',-1,1,99)">−</button>
+        <input class="stepper-val" id="we-sets" type="number" min="1" value="${e.sets || 1}">
+        <button type="button" class="stepper-btn" onclick="stepVal('we-sets',1,1,99)">+</button>
       </div>
-      <div class="form-group" style="flex:1">
-        <label class="form-label">Reps</label>
-        <div class="stepper">
-          <button type="button" class="stepper-btn" onclick="stepVal('we-reps',-1,0,999)">−</button>
-          <input class="stepper-val" id="we-reps" type="number" min="0" value="${e.reps || 0}">
-          <button type="button" class="stepper-btn" onclick="stepVal('we-reps',1,0,999)">+</button>
-        </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Reps</label>
+      <div class="stepper">
+        <button type="button" class="stepper-btn" onclick="stepVal('we-reps',-1,0,999)">−</button>
+        <input class="stepper-val" id="we-reps" type="number" min="0" value="${e.reps || 0}">
+        <button type="button" class="stepper-btn" onclick="stepVal('we-reps',1,0,999)">+</button>
       </div>
     </div>
     <div class="form-group" style="margin-bottom:20px">
       <label class="form-label">Weight (kg) — optional</label>
       <div class="stepper">
-        <button type="button" class="stepper-btn" onclick="stepVal('we-wt',-1,0,9999)">−</button>
-        <input class="stepper-val" id="we-wt" type="number" min="0" value="${e.weight || ''}" placeholder="0">
-        <button type="button" class="stepper-btn" onclick="stepVal('we-wt',1,0,9999)">+</button>
+        <button type="button" class="stepper-btn" onclick="stepWeight('we-wt',-0.5)">−</button>
+        <input class="stepper-val" id="we-wt" type="number" min="0" step="0.5" inputmode="decimal" value="${e.weight || ''}" placeholder="0">
+        <button type="button" class="stepper-btn" onclick="stepWeight('we-wt',0.5)">+</button>
       </div>
     </div>
     <button class="btn btn-primary" onclick="saveWorkoutEx(${idx})" style="margin-bottom:8px">Save Changes</button>
@@ -1657,6 +1657,12 @@ function saveWorkoutEx(idx) {
   e.sets   = Math.max(Math.max(1, e.setLog?.length || 0), sets);
   e.reps   = parseInt(document.getElementById('we-reps')?.value) || 0;
   e.weight = readWeight('we-wt');
+
+  /* persist the edit back to the source program so next workout matches */
+  const prog = db.programs.find(p => p.id === session.programId);
+  const src  = prog?.exercises.find(x => x.id === e.id);
+  if (src) { src.name = e.name; src.sets = sets; src.reps = e.reps; src.weight = e.weight; saveDB(); }
+
   closeModal(); saveSes(); go('workout');
 }
 
@@ -1709,6 +1715,13 @@ function finishWorkout() {
   launchFireworks();
   go('history');
   toast(`Workout done! ${fmtTime(dur)} 🏆`);
+}
+
+function confirmFinish() {
+  showConfirm('Finish Workout? 🏁',
+    'Nice work! Your session will be saved to your history.',
+    finishWorkout
+  );
 }
 
 function confirmEndWorkout() {
@@ -1815,6 +1828,15 @@ function stepVal(id, delta, min, max) {
   if (!el) return;
   const v = Math.min(max, Math.max(min, (parseInt(el.value) || 0) + delta));
   el.value = v;
+}
+
+/* weight stepper — supports one decimal place (0.5 steps) */
+function stepWeight(id, delta) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  let v = Math.max(0, Math.min(9999, (parseFloat(el.value) || 0) + delta));
+  v = Math.round(v * 10) / 10;
+  el.value = Number.isInteger(v) ? v : v.toFixed(1);
 }
 
 /* ═══════════════════════════════════════════
